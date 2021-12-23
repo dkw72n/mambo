@@ -28,7 +28,7 @@ LDFLAGS+=-static -ldl
 LIBS=-lelf -lpthread -lz
 HEADERS=*.h makefile
 INCLUDES=-I/usr/include/libelf -I.
-SOURCES= common.c dbm.c traces.c syscalls.c dispatcher.c signals.c util.S
+SOURCES= common.c traces.c syscalls.c dispatcher.c signals.c util.S
 SOURCES+=api/helpers.c api/plugin_support.c api/branch_decoder_support.c api/load_store.c api/internal.c api/hash_table.c
 SOURCES+=elf/elf_loader.o elf/symbol_parser.o
 
@@ -61,6 +61,7 @@ endif
 all:
 	$(info MAMBO: detected architecture "$(ARCH)")
 	@$(MAKE) --no-print-directory pie && $(MAKE) --no-print-directory $(or $(OUTPUT_FILE),dbm)
+	@$(MAKE) --no-print-directory mvm
 
 pie:
 	@$(MAKE) --no-print-directory -C pie/ native
@@ -68,8 +69,11 @@ pie:
 %.o: %.c %.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-$(or $(OUTPUT_FILE),dbm): $(HEADERS) $(SOURCES) $(PLUGINS)
-	$(CC) $(CFLAGS) $(LDFLAGS) $(OPTS) $(INCLUDES) -o $@ $(SOURCES) $(PLUGINS) $(PIE) $(LIBS) $(PLUGIN_ARGS)
+$(or $(OUTPUT_FILE),dbm): $(HEADERS) $(SOURCES) dbm.c $(PLUGINS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(OPTS) $(INCLUDES) -o $@ $(SOURCES) dbm.c $(PLUGINS) $(PIE) $(LIBS) $(PLUGIN_ARGS)
+
+mvm: $(HEADERS) $(SOURCES) mvm.c $(PLUGINS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(OPTS) $(INCLUDES) -o $@ $(SOURCES) mvm.c $(PLUGINS) $(PIE) $(LIBS) $(PLUGIN_ARGS)
 
 cachesim:
 	PLUGINS="plugins/cachesim/cachesim.c plugins/cachesim/cachesim.S plugins/cachesim/cachesim_model.c" OUTPUT_FILE=mambo_cachesim make
@@ -77,8 +81,11 @@ cachesim:
 memcheck:
 	PLUGINS="plugins/memcheck/memcheck.S plugins/memcheck/memcheck.c plugins/memcheck/naive_stdlib.c" OUTPUT_FILE=mambo_memcheck make
 
+with_strace: clean
+	PLUGINS+=plugins/strace.c make && cp mvm with_strace
+
 clean:
-	rm -f dbm elf/elf_loader.o elf/symbol_parser.o
+	rm -f dbm with_strace elf/elf_loader.o elf/symbol_parser.o
 
 cleanall: clean
 	$(MAKE) -C pie/ clean
